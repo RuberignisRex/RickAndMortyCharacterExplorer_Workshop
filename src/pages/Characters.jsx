@@ -1,0 +1,79 @@
+import { useState, useEffect, useMemo } from 'react'
+import CharacterCard from '../components/CharacterCard'
+
+export default function Characters() {
+    const [characters, setCharacters] = useState([]) // 'data' state: holds list we fetch from API
+    // UI states: loading and error
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
+    const [query, setQuery] = useState('') // controlled input for search
+    const [page, setPage] = useState(1) // pagination state
+
+    useEffect(() => {
+        let ignore = false;
+        (async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const url = `https://rickandmortyapi.com/api/character?page=${page}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`Request Failed (HTTP ${res.status})`); // if status is not 200 - 299, treat it as an error
+                const json = await res.json();
+                if (!ignore) {
+                    setCharacters(json.results ?? []); // only update state if component is still mounted
+                }
+            } catch (err) {
+                if (!ignore) {
+                    setError(err.message);
+                }
+            } finally {
+                //  'finally' guarantees loading stops even if error occurs
+                if (!ignore) {
+                    setLoading(false);
+                }
+            }
+        })()
+        // cleanup prevents state updates if we navigate away before completing fetch
+        return () => {
+            ignore = true;
+        };
+    }, [page]);
+
+    // Filter characters locally
+    const filteredCharacters = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return characters;
+        return characters.filter(c => c.name.toLowerCase().includes(q));
+    }, [characters, query])
+
+    // UI states first: loading, error
+    if (loading) return <p className="message">Loading characters...</p>
+    if (error) return <p className="message error">Error loading characters: {error}</p>
+    return (
+        <main>
+            <section className="toolbar">
+                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name..." className="input" aria-label='Search characters'/>
+                <span className="count">{filteredCharacters.length} results</span>
+            </section>
+            {filteredCharacters.length === 0 ? (
+                <p className="message">No characters found. Try a different search</p>
+            ) : (
+                <section className="grid">
+                    {filteredCharacters.map(character => (
+                        <CharacterCard key={character.id} character={character} />
+                    ))}
+                </section>
+            )}
+            <section className="pager">
+                <button className="button secondary" onClick={() => setPage(p => Math.max(1, p - 1))}>
+                    Previous
+                </button>
+                <span className="page-label">Page {page}</span>
+                <button className="button secondary" onClick={() => setPage(p => p + 1)}>
+                    Next
+                </button>
+            </section>
+        </main>
+    )
+
+}
